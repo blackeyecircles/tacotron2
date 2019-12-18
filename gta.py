@@ -51,8 +51,8 @@ def parse_args(parser):
     parser.add_argument('-o', '--output', type=str, default='gta', help='output folder to save audio (file per phrase)')
     parser.add_argument('-sr', '--sampling-rate', default=22050, type=int, help='Sampling rate')
     parser.add_argument('--checkpoint', type=str, default="logs/checkpoint_latest.pt", help='full path to the Tacotron2 model checkpoint file')
-    parser.add_argument('--dataset-path', type=str, default='filelists', help='Path to dataset')
-    parser.add_argument('--anchor-dirs', default=['ljs_mel_text_train_filelist.txt'], type=str, nargs='*', help='Multi-speaker corpus directory')
+    parser.add_argument('--dataset-path', type=str, default='/home/shenxz/dataset/training_data', help='Path to dataset')
+    parser.add_argument('--anchor-dirs', default=['BZNSYP'], type=str, nargs='*', help='Multi-speaker corpus directory')
     parser.add_argument('--text-cleaners', nargs='*', default=['basic_cleaners'], type=str, help='Type of text cleaners for input text')
     parser.add_argument('--amp-run', action='store_true', help='inference with AMP')
     parser.add_argument('--log-file', type=str, default='nvlog.json', help='Filename for logging')
@@ -173,13 +173,15 @@ def main():
             for mel_path, text in tqdm(metadata):
                seq = text_to_sequence(text, speaker_id, ['basic_cleaners'])
                seqs = torch.from_numpy(np.stack(seq)).unsqueeze(0)
-               seq_lens = torch.IntTensor([len(text)])
+               # seq_lens = torch.IntTensor([len(text)])
+               seq_lens = torch.IntTensor([len(seq)])
                melspec = torch.from_numpy(np.load(mel_path))
                target = melspec[:, ::args.reduction_factor]
                targets = torch.from_numpy(np.stack(target)).unsqueeze(0)
                target_lengths = torch.IntTensor([target.shape[1]])
                inputs = (to_gpu(seqs).long(), to_gpu(seq_lens).int(), to_gpu(targets).float(), to_gpu(target_lengths).int())
                _, mel_outs, _, _ = model(inputs)
+               # _, mels, _, _, mel_lengths = model.infer(to_gpu(seqs).long(), to_gpu(seq_lens).int())
                fname = os.path.basename(mel_path)
                np.save(os.path.join(args.output, fname), mel_outs[0, :, :melspec.shape[1]], allow_pickle=False)
 

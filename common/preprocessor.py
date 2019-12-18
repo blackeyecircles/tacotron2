@@ -29,14 +29,21 @@ def build_from_path(hparams, input_dir, wav_dir, mel_dir, n_jobs=12, tqdm=lambda
 	executor = ProcessPoolExecutor(max_workers=n_jobs)
 	for root, _, files in os.walk(input_dir):
 		for f in files:
-			if f.endswith('.trn'):
+			# if f.endswith('.trn'):
+			if f == "filelist.txt":
 				trn_file = os.path.join(root, f)
 				with open(trn_file) as f:
-					basename = trn_file[:-4]
-					wav_file = basename + '.wav'
-					basename = basename.split('/')[-1]
-					text = f.readline().strip()
-					futures.append(executor.submit(partial(_process_utterance, wav_dir, mel_dir, basename, wav_file, text, hparams)))
+					# basename = trn_file[:-4]
+					# wav_file = basename + '.wav'
+					# basename = basename.split('/')[-1]
+					# text = f.readline().strip()
+					for line in f:
+						line = line.strip().split("|")
+						tmp = line[0].split("/")
+						basename = tmp[2][:-4]
+						wav_file = os.path.join(input_dir, tmp[1], tmp[2])
+						text = line[1]
+						futures.append(executor.submit(partial(_process_utterance, wav_dir, mel_dir, basename, wav_file, text, hparams)))
 
 	return [future.result() for future in tqdm(futures) if future.result() is not None]
 

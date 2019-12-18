@@ -50,7 +50,7 @@ def norm_data(args):
 		return [os.path.join(args.base_dir, args.dataset)]
 
 	if args.dataset.startswith('MANDARIN'):
-		return [os.path.join(args.base_dir, 'data_mandarin', anchor) for anchor in hparams.anchor_dirs]
+		return [os.path.join(args.base_dir, anchor) for anchor in hparams.anchor_dirs]
 
 	if args.dataset == 'M-AILABS':
 		supported_languages = ['en_US', 'en_UK', 'fr_FR', 'it_IT', 'de_DE', 'es_ES', 'ru_RU',
