@@ -1,7 +1,7 @@
 import librosa
 import librosa.filters
 import numpy as np
-from hparams import hparams
+from hparams_tacotron import hparams
 from scipy import signal
 from scipy.io import wavfile
 

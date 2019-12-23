@@ -489,8 +489,15 @@ class Tacotron2(nn.Module):
         # [B, T_in, encoder_dim]
         encoder_outputs = self.encoder(embedded_inputs, text_lengths)
 
+        torch.save(encoder_outputs, "outputs/encoder_outputs0.pt")
+
         mel_outputs_before, gate_outputs, alignments, mel_lengths = self.decoder.infer(encoder_outputs, text_lengths)
+
+        torch.save(mel_outputs_before, "outputs/mel_outputs_before0.pt")
+
         mel_outputs_after = mel_outputs_before + self.postnet(mel_outputs_before)
+
+        torch.save(mel_outputs_after, "outputs/mel_outputs_after0.pt")
 
         return self.parse_outputs([mel_outputs_before, mel_outputs_after, gate_outputs, alignments, mel_lengths])
 

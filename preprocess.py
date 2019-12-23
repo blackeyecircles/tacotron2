@@ -3,7 +3,7 @@ import os
 from multiprocessing import cpu_count
 
 from common import preprocessor
-from hparams import hparams
+from hparams_tacotron import hparams
 from tqdm import tqdm
 
 

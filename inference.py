@@ -28,6 +28,7 @@
 import argparse
 import numpy as np
 import os
+import random
 import sys
 import time
 import torch
@@ -42,13 +43,20 @@ import dllogger.logger as dllg
 from dllogger.autologging import log_hardware, log_args
 
 
+from utils.dsp import *
+from wavernn.fatchord_version import WaveRNN
+# from utils.paths import Paths
+from utils.display import simple_table
+
+
 def parse_args(parser):
     """
     Parse commandline arguments.
     """
     parser.add_argument('-i', '--input-file', type=str, default="text.txt", help='full path to the input text (phareses separated by new line)')
     parser.add_argument('-o', '--output', type=str, default="outputs", help='output folder to save audio (file per phrase)')
-    parser.add_argument('--checkpoint', type=str, default="logs/checkpoint_latest.pt", help='full path to the Tacotron2 model checkpoint file')
+    parser.add_argument('--checkpoint_tacotron', type=str, default="logs/checkpoint_latest.pt", help='full path to the Tacotron2 model checkpoint file')
+    parser.add_argument('--checkpoint_wavernn', type=str, default="logs/wavernn_latest_weights.pyt", help='full path to the Tacotron2 model checkpoint file')
     parser.add_argument('-id', '--speaker-id', default=0, type=int, help='Speaker identity')
     parser.add_argument('-sn', '--speaker-num', default=1, type=int, help='Speaker number')
     parser.add_argument('-sr', '--sampling-rate', default=22050, type=int, help='Sampling rate')
@@ -66,8 +74,8 @@ def load_checkpoint(checkpoint_path, model_name):
     return model
 
 
-def load_and_setup_model(parser, args):
-    checkpoint_path = args.checkpoint
+def load_and_setup_tacotron(parser, args):
+    checkpoint_path = args.checkpoint_tacotron
     parser = parse_tacotron2_args(parser, add_help=False)
     args, _ = parser.parse_known_args()
     model = get_tacotron2_model(args, args.speaker_num, is_training=False)
@@ -77,6 +85,46 @@ def load_and_setup_model(parser, args):
     if args.amp_run:
         model, _ = amp.initialize(model, [], opt_level="O3")
 
+    return model
+
+
+def load_and_setup_wavernn(restore_path):
+    # parser.set_defaults(batched=hp.voc_gen_batched)
+    # parser.set_defaults(samples=hp.voc_gen_at_checkpoint)
+    # parser.set_defaults(target=hp.voc_target)
+    # parser.set_defaults(overlap=hp.voc_overlap)
+    # parser.set_defaults(file=None)
+    # parser.set_defaults(weights=None)
+    # parser.set_defaults(gta=False)
+
+
+    print('\nInitialising WaveRnn Model...\n')
+
+    model = WaveRNN(rnn_dims=hp.voc_rnn_dims,
+                    fc_dims=hp.voc_fc_dims,
+                    bits=hp.bits,
+                    pad=hp.voc_pad,
+                    upsample_factors=hp.voc_upsample_factors,
+                    feat_dims=hp.num_mels,
+                    compute_dims=hp.voc_compute_dims,
+                    res_out_dims=hp.voc_res_out_dims,
+                    res_blocks=hp.voc_res_blocks,
+                    hop_length=hp.hop_length,
+                    sample_rate=hp.sample_rate,
+                    pad_val=hp.voc_pad_val,
+                    mode=hp.voc_mode).cuda()
+
+    # paths = Paths(hp.data_path, hp.voc_model_id, hp.tts_model_id)
+
+    # restore_path = args.weights if args.weights else paths.voc_latest_weights
+
+    model.restore(restore_path)
+
+    # simple_table([('Generation Mode', 'Batched' if batched else 'Unbatched'),
+    #               ('Target Samples', target if batched else 'N/A'),
+    #               ('Overlap Samples', overlap if batched else 'N/A')])
+
+    # k = model.get_step() // 1000
     return model
 
 
@@ -125,11 +173,21 @@ class MeasureTime():
         self.measurements[self.key] = time.perf_counter() - self.t0
 
 
+def setup_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+
 def main():
     """
     Launches text to speech (inference).
     Inference is executed on a single GPU.
     """
+    setup_seed(1234)
+
     parser = argparse.ArgumentParser(description='PyTorch Tacotron 2 Inference')
     parser = parse_args(parser)
     args, _ = parser.parse_known_args()
@@ -143,7 +201,15 @@ def main():
     LOGGER.register_metric("tacotron2_latency", metric_scope=dllg.TRAIN_ITER_SCOPE)
     LOGGER.register_metric("latency", metric_scope=dllg.TRAIN_ITER_SCOPE)
 
-    model = load_and_setup_model(parser, args)
+    tacotron = load_and_setup_tacotron(parser, args)
+
+    wavernn = load_and_setup_wavernn(args.checkpoint_wavernn)
+    batched = hp.voc_gen_batched
+    samples = hp.voc_gen_at_checkpoint
+    target = hp.voc_target
+    overlap = hp.voc_overlap
+    gta = False
+
 
     log_hardware()
     log_args(args)
@@ -154,7 +220,7 @@ def main():
         text_lengths = torch.IntTensor([sequence.size(1)]).cuda().long()
         for i in range(3):
             with torch.no_grad():
-                _, mels, _, _, mel_lengths = model.infer(sequences, text_lengths)
+                _, mels, _, _, mel_lengths = tacotron.infer(sequences, text_lengths)
 
     try:
         f = open(args.input_file)
@@ -169,11 +235,17 @@ def main():
 
     measurements = {}
 
+    start_time = time.time()
     sequences, text_lengths, ids_sorted_decreasing = prepare_input_sequence(sentences, args.speaker_id)
 
     with torch.no_grad(), MeasureTime(measurements, "tacotron2_time"):
-        _, mels, _, _, mel_lengths = model.infer(sequences, text_lengths)
+        _, mels, _, _, mel_lengths = tacotron.infer(sequences, text_lengths)
 
+    # wavernn.generate(mels + hp.mel_bias, 'outputs/eval_wave_.wav', batched, target, overlap, hp.mu_law)
+    torch.save(mels, 'outputs/output_mel0.npy')
+
+    end_time = time.time()
+    print("tacotron_time cost: ", end_time - start_time)
     tacotron2_infer_perf = mels.size(0)*mels.size(2)/measurements['tacotron2_time']
 
     LOGGER.log(key="tacotron2_frames_per_sec", value=tacotron2_infer_perf)
@@ -187,11 +259,20 @@ def main():
     mels = [mel[:, :length] for mel, length in zip(mels, mel_lengths)]
     mels = [mels[ids_sorted_decreasing.index(i)] for i in range(len(ids_sorted_decreasing))]
     wav = audio.inv_mel_spectrogram(np.concatenate(mels, axis=-1))
-    audio.save_wav(wav, os.path.join(args.output, 'eval.wav'))
+    audio.save_wav(wav, os.path.join(args.output, 'eval_gl.wav'))
     # for i in range(len(mels)):
     #     np.save(os.path.join(args.output, f'eval_mel_{i}.npy'), mels[i], allow_pickle=False)
-    np.save(os.path.join(args.output, f'eval_mel.npy'), np.concatenate(mels, axis=-1), allow_pickle=False)
+    np.save(os.path.join(args.output, f'eval_mel0.npy'), mels[0], allow_pickle=False)
 
+    wavernn.generate(torch.tensor(np.concatenate(mels, axis=-1)).unsqueeze(0) + hp.mel_bias, 'outputs/eval_wave_long.wav', batched, target, overlap, hp.mu_law)
+    # for i in range(len(mels)):
+    #     mel = torch.tensor(mels[i]).unsqueeze(0)
+    #     mel += hp.mel_bias
+    #     save_str = f'outputs/eval_wave_{i}.wav'
+    #
+    #     wavernn.generate(mel, save_str, batched, target, overlap, hp.mu_law)
+
+    print("wavernn_time cost: ", str(time.time() - end_time))
 
 if __name__ == '__main__':
     main()
