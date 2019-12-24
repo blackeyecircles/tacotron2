@@ -1,0 +1,47 @@
+{
+    "run": {
+        "cpu_info": {
+            "num": 12,
+            "name": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz"
+        },
+        "mem_info": {
+            "ram": "15G"
+        },
+        "gpu_info": {
+            "driver_version": "430.64",
+            "num": 1,
+            "name": [
+                "GeForce GTX 1060 6GB"
+            ],
+            "mem": [
+                "6075 MiB"
+            ]
+        }
+    },
+    "epoch": {
+        "x": []
+    },
+    "iter": {
+        "x": [
+            [
+                0
+            ]
+        ],
+        "tacotron2_frames_per_sec": [
+            [
+                17153.122394208713
+            ]
+        ],
+        "tacotron2_latency": [
+            [
+                0.1558316869995906
+            ]
+        ],
+        "latency": [
+            [
+                0.1558316869995906
+            ]
+        ]
+    },
+    "event": {}
+}

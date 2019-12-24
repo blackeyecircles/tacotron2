@@ -33,8 +33,10 @@ def save_wav(x, path) :
 
     audio_segment = audio_segment.apply_gain(-20 - audio_segment.dBFS)
     norm_wav = audio_segment.get_array_of_samples()
-    if path is not None: write(path, hp.sample_rate, np.array(norm_wav))
-    return np.array(norm_wav)
+    if path is not None:
+        write(path, hp.sample_rate, np.array(norm_wav))
+    # return np.array(norm_wav)
+    return norm_wav
 
 
 def split_signal(x) :
