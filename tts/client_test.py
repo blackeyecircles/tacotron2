@@ -4,7 +4,7 @@ from urllib import parse, request
 from scipy.io.wavfile import write
 import numpy as np
 from threading import Thread
-
+import pyaudio
 
 def run(i, text):
     textmod={'text': text}
@@ -18,9 +18,27 @@ def run(i, text):
 
     res = res.read().decode(encoding='utf-8')
     tmp = json.loads(res)
-    output = base64.b64decode(tmp['data']).decode(encoding='utf-8')
-    output1 = list(map(int, output[output.find('[') + 1:output.rfind(']')].split(', ')))
-    write(f'./outputs/client_{i}.wav', 22050, np.array(output1, dtype=np.int16))
+    output = base64.b64decode(tmp['data'])
+    p = pyaudio.PyAudio()
+    stream=p.open(format=p.get_format_from_width(2), channels=1, rate=22050, output=True)
+    stream.write(output)
+    stream.stop_stream()   # 停止数据流
+    stream.close()
+    p.terminate()  # 关闭 PyAudio
+
+    # output = base64.b64decode(tmp['data']).decode(encoding='utf-8')
+    # output1 = np.array(list(map(int, output[output.find('[') + 1:output.rfind(']')].split(', '))), dtype=np.int16)
+    # write(f'./outputs/client_{i}.wav', 22050, output1)
+    # chunk = 2048
+    # p=pyaudio.PyAudio()
+    # stream=p.open(format=p.get_format_from_width(2), channels=1, rate=22050, output=True)
+    # for i in range(output1.size // chunk):
+    #     stream.write(output1[i * chunk: (i + 1) * chunk].tobytes())
+    # stream.write(output1[(i+1)*chunk:].tobytes())
+    # stream.stop_stream()   # 停止数据流
+    # stream.close()
+    # p.terminate()  # 关闭 PyAudio
+
 
 
 for i in range(1):

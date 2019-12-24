@@ -12,6 +12,6 @@ def synthetic(request):
     print(text)
     res = synthetic_audio(text)
     tmp0 = str(res)
-    data = {"data": str(base64.b64encode(str(res).encode('utf-8')), "UTF8")}
-    # data = base64.b64encode(pickle.dumps(res), "UTF8")
+    # data = {"data": str(base64.b64encode(str(res).encode('utf-8')), "UTF8")}
+    data = {"data": str(base64.b64encode(res.tobytes()), "UTF8")}
     return HttpResponse(json.dumps(data))
