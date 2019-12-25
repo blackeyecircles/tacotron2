@@ -22,9 +22,9 @@ def run(i, text):
     p = pyaudio.PyAudio()
     stream=p.open(format=p.get_format_from_width(2), channels=1, rate=22050, output=True)
     stream.write(output)
-    stream.stop_stream()   # 停止数据流
+    stream.stop_stream()
     stream.close()
-    p.terminate()  # 关闭 PyAudio
+    p.terminate()
 
     # output = base64.b64decode(tmp['data']).decode(encoding='utf-8')
     # output1 = np.array(list(map(int, output[output.find('[') + 1:output.rfind(']')].split(', '))), dtype=np.int16)
@@ -42,7 +42,7 @@ def run(i, text):
 
 
 for i in range(1):
-    text = '我的工作，我的生活，我的人生，尽在于此' * (i + 1)
+    text = '我的工作，我的生活，我的人生，尽在于此。' * (i + 1)
     th = Thread(target=run, args=(i, text))
     th.start()
 
