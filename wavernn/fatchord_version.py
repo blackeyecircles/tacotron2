@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils.distribution import sample_from_discretized_mix_logistic
-from utils.display import *
-from utils.dsp import *
-from scipy import signal
+from wavernn.utils.distribution import sample_from_discretized_mix_logistic
+from wavernn.utils.display import *
+from wavernn.utils.dsp import *
 import os
 
 
@@ -169,7 +168,10 @@ class WaveRNN(nn.Module):
                 aux = self.fold_with_overlap(aux, target, overlap, self.pad_val)
 
             b_size, seq_len, _ = mels.size()
-
+            # n = 2227
+            # num = 1
+            # torch.save(mels, f"outputs/batched_mels{num}.pt")
+            # torch.save(mels, f"outputs/batched_aux{num}.pt")
             h1 = torch.zeros(1).cuda().repeat(b_size, self.rnn_dims)
             h2 = torch.zeros(1).cuda().repeat(b_size, self.rnn_dims)
             x = torch.zeros(1).cuda().repeat(b_size, 1)
@@ -186,7 +188,6 @@ class WaveRNN(nn.Module):
                 x = torch.cat([x, m_t, a1_t], dim=1)
                 x = self.I(x)
                 h1 = rnn1(x, h1)
-
                 x = x + h1
                 inp = torch.cat([x, a2_t], dim=1)
                 h2 = rnn2(inp, h2)
@@ -200,26 +201,37 @@ class WaveRNN(nn.Module):
 
                 logits = self.fc3(x)
 
+                # if i == n:
+                #     torch.save(logits, f"outputs/logits{num}.pt")
                 if self.mode == 'MOL':
                     sample = sample_from_discretized_mix_logistic(logits.unsqueeze(0).transpose(1, 2))
                     output.append(sample.view(-1))
                     # x = torch.FloatTensor([[sample]]).cuda()
                     x = sample.transpose(0, 1).cuda()
 
-                elif self.mode == 'RAW' :
+                elif self.mode == 'RAW':
                     posterior = F.softmax(logits, dim=1)
+                    # if i == n:
+                    #     torch.save(posterior, f"outputs/posterior{num}.pt")
                     distrib = torch.distributions.Categorical(posterior)
-
-                    sample = 2 * distrib.sample().float() / (self.n_classes - 1.) - 1.
+                    sample = distrib.sample().float()
+                    # if i == n:
+                    #     torch.save(sample, f"outputs/sample{num}.pt")
+                    sample = 2 * sample / (self.n_classes - 1.) - 1.
                     output.append(sample)
                     x = sample.unsqueeze(-1)
+                    # if i == n:
+                    #     torch.save(x, f"outputs/x_after_sample{num}.pt")
                 else:
                     raise RuntimeError("Unknown model mode value - ", self.mode)
 
                 if i % 100 == 0 : self.gen_display(i, seq_len, b_size, start)
 
+        print("\n")
+
         output = torch.stack(output).transpose(0, 1)
         output = output.cpu().numpy()
+        # torch.save(output, f"outputs/output_before_mulaw{num}.pt")
         output = output.astype(np.float64)
 
         if mu_law :
@@ -230,14 +242,16 @@ class WaveRNN(nn.Module):
         else:
             output = output[0]
 
+        # torch.save(output, "outputs/output_batched1.pt")
+
         output = output[:wave_len]
 
         output = save_wav(output, save_path)
 
         self.train()
 
+        # np.save(f'outputs/eval_pcm{num}.npy', np.array(output))
         return output
-
 
     def gen_display(self, i, seq_len, b_size, start):
         gen_rate = (i + 1) / (time.time() - start) * b_size / 1000
@@ -400,7 +414,7 @@ class WaveRNN(nn.Module):
             print('\nNew WaveRNN Training Session...\n')
             self.save(path)
         else:
-            print(f'\nLoading Weights: "{path}"\n')
+            print(f'\nLoading WaveRnn Weights: "{path}"\n')
             self.load(path)
 
     def load(self, path) :
@@ -413,4 +427,4 @@ class WaveRNN(nn.Module):
         parameters = filter(lambda p: p.requires_grad, self.parameters())
         parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
         if print_out :
-            print('Trainable Parameters: %.3fM' % parameters)
+            print('WaveRnn Trainable Parameters: %.3fM' % parameters)

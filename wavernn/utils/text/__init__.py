@@ -1,7 +1,7 @@
 """ from https://github.com/keithito/tacotron """
 import re
-from utils.text import cleaners
-from utils.text.symbols import symbols
+from wavernn.utils.text import cleaners
+from wavernn.utils.text import symbols
 
 
 # Mappings from symbol to numeric ID and vice versa:

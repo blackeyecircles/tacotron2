@@ -24,7 +24,7 @@
 #  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 # *****************************************************************************
-
+import numpy as np
 import math
 import os
 import torch
@@ -457,6 +457,7 @@ class Tacotron2(nn.Module):
                                gate_threshold, decoder_n_lstms,
                                p_decoder_dropout)
         self.postnet = Postnet(n_mel_channels, postnet_embedding_dim, postnet_kernel_size, postnet_n_convolutions)
+        self.num_params()
 
     def parse_outputs(self, outputs, target_lengths=None):
         if self.mask_padding and target_lengths is not None:
@@ -530,7 +531,7 @@ class Tacotron2(nn.Module):
                     new_state_dict[new_key] = value
                 return new_state_dict
 
-            print(f'\nLoading Weights: "{filepath}"')
+            print(f'\nLoading Tacotron2 Weights: "{filepath}"')
             state_dict = torch.load(filepath)
             if _checkpoint_from_distributed(state_dict):
                 state_dict = _unwrap_distributed(state_dict)
@@ -538,3 +539,9 @@ class Tacotron2(nn.Module):
         else:
             print('\nNew Tacotron2 Training Session...')
             torch.save(self.state_dict(), filepath)
+
+    def num_params(self, print_out=True):
+        parameters = filter(lambda p: p.requires_grad, self.parameters())
+        parameters = sum([np.prod(p.size()) for p in parameters]) / 1_000_000
+        if print_out :
+            print('Tacotron2 Trainable Parameters: %.3fM' % parameters)

@@ -1,33 +1,23 @@
-from django.db import models
-
 # Create your models here.
 
 
 import argparse
-import numpy as np
 import os
 import random
-import sys
 import time
 import torch
 # from apex import amp
-from common import audio
-from scipy.io.wavfile import write
 from tacotron2.loader import parse_tacotron2_args
 from tacotron2.loader import get_tacotron2_model
 from tacotron2.text import text_to_sequence
 from dllogger.logger import LOGGER
 import dllogger.logger as dllg
-from dllogger.autologging import log_hardware, log_args
+from dllogger.autologging import log_hardware
 
-from word2pinyin import word2pinyin
-from utils.dsp import *
+from common.word2pinyin import word2pinyin
+from wavernn.utils.dsp import *
 from wavernn.fatchord_version import WaveRNN
 # from utils.paths import Paths
-from utils.display import simple_table
-
-tacotron_model = None
-wavernn_model = None
 
 
 def parse_args(parser):
@@ -36,8 +26,8 @@ def parse_args(parser):
     """
     parser.add_argument('-i', '--input-file', type=str, default="text.txt", help='full path to the input text (phareses separated by new line)')
     parser.add_argument('-o', '--output', type=str, default="outputs", help='output folder to save audio (file per phrase)')
-    parser.add_argument('--checkpoint_tacotron', type=str, default="logs/tacotron2_checkpoint.pyt", help='full path to the Tacotron2 model checkpoint file')
-    parser.add_argument('--checkpoint_wavernn', type=str, default="logs/wavernn_checkpoint.pyt", help='full path to the Tacotron2 model checkpoint file')
+    parser.add_argument('--checkpoint_tacotron', type=str, default="pretrained_model/tacotron2_checkpoint.pyt", help='full path to the Tacotron2 model checkpoint file')
+    parser.add_argument('--checkpoint_wavernn', type=str, default="pretrained_model/wavernn_checkpoint.pyt", help='full path to the Tacotron2 model checkpoint file')
     parser.add_argument('-id', '--speaker-id', default=0, type=int, help='Speaker identity')
     parser.add_argument('-sn', '--speaker-num', default=1, type=int, help='Speaker number')
     parser.add_argument('-sr', '--sampling-rate', default=22050, type=int, help='Sampling rate')
@@ -61,8 +51,6 @@ def load_and_setup_tacotron(parser, args):
 
 def load_and_setup_wavernn(restore_path):
 
-    print('\nInitialising WaveRnn Model...\n')
-
     model = WaveRNN(rnn_dims=hp.voc_rnn_dims,
                     fc_dims=hp.voc_fc_dims,
                     bits=hp.bits,
@@ -79,11 +67,6 @@ def load_and_setup_wavernn(restore_path):
 
     model.restore(restore_path)
 
-    # simple_table([('Generation Mode', 'Batched' if batched else 'Unbatched'),
-    #               ('Target Samples', target if batched else 'N/A'),
-    #               ('Overlap Samples', overlap if batched else 'N/A')])
-
-    # k = model.get_step() // 1000
     return model
 
 
@@ -153,7 +136,7 @@ LOGGER.set_backends([
 ])
 LOGGER.register_metric("tacotron2_frames_per_sec", metric_scope=dllg.TRAIN_ITER_SCOPE)
 LOGGER.register_metric("tacotron2_latency", metric_scope=dllg.TRAIN_ITER_SCOPE)
-LOGGER.register_metric("latency", metric_scope=dllg.TRAIN_ITER_SCOPE)
+LOGGER.register_metric("total latency", metric_scope=dllg.TRAIN_ITER_SCOPE)
 
 tacotron_model = load_and_setup_tacotron(parser, args)
 
@@ -174,30 +157,29 @@ def synthetic_audio(text):
 
     measurements = {}
 
-    start_time = time.time()
     sequences, text_lengths, ids_sorted_decreasing = prepare_input_sequence(sentences, args.speaker_id)
 
     with torch.no_grad(), MeasureTime(measurements, "tacotron2_time"):
         _, mels, _, _, mel_lengths = tacotron_model.infer(sequences, text_lengths)
 
 
-    end_time = time.time()
-    print("\ntacotron_time cost: ", end_time - start_time)
     tacotron2_infer_perf = mels.size(0)*mels.size(2)/measurements['tacotron2_time']
 
     LOGGER.log(key="tacotron2_frames_per_sec", value=tacotron2_infer_perf)
     LOGGER.log(key="tacotron2_latency", value=measurements['tacotron2_time'])
-    LOGGER.log(key="latency", value=(measurements['tacotron2_time']))
-    LOGGER.iteration_stop()
-    LOGGER.finish()
 
     # recover to the original order and concatenate
     ids_sorted_decreasing = ids_sorted_decreasing.numpy().tolist()
     mels = [mel[:, :length] for mel, length in zip(mels, mel_lengths)]
     mels = [mels[ids_sorted_decreasing.index(i)] for i in range(len(ids_sorted_decreasing))]
 
-    pcm = wavernn_model.generate(torch.tensor(np.concatenate(mels, axis=-1)).unsqueeze(0) + hp.mel_bias, 'outputs/eval_wave_long.wav', batched, target, overlap, hp.mu_law)
-    print("\ntotal_time cost: ", str(time.time() - start_time))
+    with torch.no_grad(), MeasureTime(measurements, "wavernn_time"):
+        pcm = wavernn_model.generate(torch.tensor(np.concatenate(mels, axis=-1)).unsqueeze(0) + hp.mel_bias, 'outputs/eval_wave_long.wav', batched, target, overlap, hp.mu_law)
+
+    LOGGER.log(key="wavernn_latency", value=measurements['wavernn_time'])
+    LOGGER.log(key="latency", value=(measurements['tacotron2_time'] + measurements['wavernn_time']))
+    LOGGER.iteration_stop()
+    LOGGER.finish()
     return pcm
 
 

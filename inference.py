@@ -26,15 +26,12 @@
 # *****************************************************************************
 
 import argparse
-import numpy as np
 import os
 import random
-import sys
 import time
 import torch
 # from apex import amp
 from common import audio
-from scipy.io.wavfile import write
 from tacotron2.loader import parse_tacotron2_args
 from tacotron2.loader import get_tacotron2_model
 from tacotron2.text import text_to_sequence
@@ -43,10 +40,18 @@ import dllogger.logger as dllg
 from dllogger.autologging import log_hardware, log_args
 
 
-from utils.dsp import *
+from wavernn.utils.dsp import *
 from wavernn.fatchord_version import WaveRNN
 # from utils.paths import Paths
-from utils.display import simple_table
+
+seed = 1234
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)
+random.seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 
 def parse_args(parser):
@@ -89,16 +94,6 @@ def load_and_setup_tacotron(parser, args):
 
 
 def load_and_setup_wavernn(restore_path):
-    # parser.set_defaults(batched=hp.voc_gen_batched)
-    # parser.set_defaults(samples=hp.voc_gen_at_checkpoint)
-    # parser.set_defaults(target=hp.voc_target)
-    # parser.set_defaults(overlap=hp.voc_overlap)
-    # parser.set_defaults(file=None)
-    # parser.set_defaults(weights=None)
-    # parser.set_defaults(gta=False)
-
-
-    print('\nInitialising WaveRnn Model...\n')
 
     model = WaveRNN(rnn_dims=hp.voc_rnn_dims,
                     fc_dims=hp.voc_fc_dims,
@@ -175,9 +170,11 @@ class MeasureTime():
 
 def setup_seed(seed):
     torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
+    torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
 
@@ -186,6 +183,7 @@ def main():
     Launches text to speech (inference).
     Inference is executed on a single GPU.
     """
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     setup_seed(1234)
 
     parser = argparse.ArgumentParser(description='PyTorch Tacotron 2 Inference')
@@ -217,7 +215,7 @@ def main():
     if args.include_warmup:
         sequences = torch.randint(low=0, high=148, size=(1,50),
                                   dtype=torch.long).cuda()
-        text_lengths = torch.IntTensor([sequence.size(1)]).cuda().long()
+        text_lengths = torch.IntTensor([sequences.size(1)]).cuda().long()
         for i in range(3):
             with torch.no_grad():
                 _, mels, _, _, mel_lengths = tacotron.infer(sequences, text_lengths)
@@ -235,36 +233,36 @@ def main():
 
     measurements = {}
 
-    start_time = time.time()
     sequences, text_lengths, ids_sorted_decreasing = prepare_input_sequence(sentences, args.speaker_id)
 
     with torch.no_grad(), MeasureTime(measurements, "tacotron2_time"):
         _, mels, _, _, mel_lengths = tacotron.infer(sequences, text_lengths)
 
     # wavernn.generate(mels + hp.mel_bias, 'outputs/eval_wave_.wav', batched, target, overlap, hp.mu_law)
-    torch.save(mels, 'outputs/output_mel0.npy')
 
-    end_time = time.time()
-    print("tacotron_time cost: ", end_time - start_time)
     tacotron2_infer_perf = mels.size(0)*mels.size(2)/measurements['tacotron2_time']
 
     LOGGER.log(key="tacotron2_frames_per_sec", value=tacotron2_infer_perf)
     LOGGER.log(key="tacotron2_latency", value=measurements['tacotron2_time'])
-    LOGGER.log(key="latency", value=(measurements['tacotron2_time']))
-    LOGGER.iteration_stop()
-    LOGGER.finish()
 
     # recover to the original order and concatenate
     ids_sorted_decreasing = ids_sorted_decreasing.numpy().tolist()
     mels = [mel[:, :length] for mel, length in zip(mels, mel_lengths)]
     mels = [mels[ids_sorted_decreasing.index(i)] for i in range(len(ids_sorted_decreasing))]
-    wav = audio.inv_mel_spectrogram(np.concatenate(mels, axis=-1))
-    audio.save_wav(wav, os.path.join(args.output, 'eval_gl.wav'))
+    # wav = audio.inv_mel_spectrogram(np.concatenate(mels, axis=-1))
+    # audio.save_wav(wav, os.path.join(args.output, 'eval_gl.wav'))
     # for i in range(len(mels)):
     #     np.save(os.path.join(args.output, f'eval_mel_{i}.npy'), mels[i], allow_pickle=False)
-    np.save(os.path.join(args.output, f'eval_mel0.npy'), mels[0], allow_pickle=False)
+    # np.save(os.path.join(args.output, f'eval_mel0.npy'), mels[0], allow_pickle=False)
+    np.save(os.path.join(args.output, f'eval_mel1.npy'), np.concatenate(mels, axis=-1), allow_pickle=False)
 
-    wavernn.generate(torch.tensor(np.concatenate(mels, axis=-1)).unsqueeze(0) + hp.mel_bias, 'outputs/eval_wave_long.wav', batched, target, overlap, hp.mu_law)
+    with torch.no_grad(), MeasureTime(measurements, "wavernn_time"):
+        pcm = wavernn.generate(torch.tensor(np.concatenate(mels, axis=-1)).unsqueeze(0) + hp.mel_bias, 'outputs/eval_wave_long.wav', batched, target, overlap, hp.mu_law)
+
+    LOGGER.log(key="wavernn_latency", value=measurements['wavernn_time'])
+    LOGGER.log(key="latency", value=(measurements['tacotron2_time'] + measurements['wavernn_time']))
+    LOGGER.iteration_stop()
+    LOGGER.finish()
     # for i in range(len(mels)):
     #     mel = torch.tensor(mels[i]).unsqueeze(0)
     #     mel += hp.mel_bias
@@ -272,7 +270,8 @@ def main():
     #
     #     wavernn.generate(mel, save_str, batched, target, overlap, hp.mu_law)
 
-    print("wavernn_time cost: ", str(time.time() - end_time))
+    torch.cuda.empty_cache()
+
 
 if __name__ == '__main__':
     main()

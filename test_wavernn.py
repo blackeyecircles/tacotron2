@@ -1,8 +1,7 @@
-from utils.dataset import get_vocoder_datasets
-from utils.dsp import *
+from wavernn.utils.dsp import *
 from wavernn.fatchord_version import WaveRNN
-from utils.paths import Paths
-from utils.display import simple_table
+from wavernn.utils.paths import Paths
+from wavernn.utils.display import simple_table
 import numpy as np
 import os
 import torch

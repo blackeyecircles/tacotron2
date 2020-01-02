@@ -4,9 +4,9 @@ import random
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import Sampler
-from utils.dsp import *
+from wavernn.utils.dsp import *
 import hparams_wavernn as hp
-from utils.text import text_to_sequence
+from wavernn.utils.text import text_to_sequence
 
 
 ###################################################################################

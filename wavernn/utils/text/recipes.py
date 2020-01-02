@@ -1,4 +1,4 @@
-from utils.files import get_files
+from wavernn.utils.files import get_files
 
 
 def ljspeech(path) :
