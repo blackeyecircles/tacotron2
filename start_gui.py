@@ -26,25 +26,26 @@ name_input.pack()
 name_input.insert(tk.INSERT, "我的工作，我的生活，我的人生，尽在于此。")
 
 
-def print_name():
+def synthetic():
     # 可以用get()方法获取Text的文本内容, 其中第一个参数是起始位置，'1.1'就是从第一行第一列后，到第一行第五列后
     # print(name_input.get('0.0', tk.END))
     # run(0, name_input.get('0.0', tk.END), set_flag)
     th = Thread(target=run, args=(0, name_input.get('0.0', tk.END), set_flag))
     th.start()
-    # while th.is_alive():
-    #     print('waiting...')
-    # global global_lable
-    # global_lable['text'] = "播放结束"
 
 
 global_lable = None
-def set_flag():
+def set_flag(text):
     global global_lable
-    global_lable = tk.Label(window, text="正在播放语音...", height=3, font=ft, fg='black')
-    global_lable.pack()
+    if not global_lable:
+        global_lable = tk.Label(window, text=text, height=3, font=ft, fg='black')
+        global_lable.pack()
+    else:
+        global_lable['text'] = text
 
-tk.Button(window, text='合成语音', command=print_name, font=ft, width=8, height=2).pack()
+
+tk.Button(window, text='合成语音', command=synthetic, font=ft, width=8, height=2).pack()
+
 
 window.mainloop()
 

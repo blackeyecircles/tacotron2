@@ -57,7 +57,8 @@ pip install -r requirement.txt
 ### Prepare dataset
 
 Download and preprocess the  [dataset](https://www.data-baker.com/open_source.html), and then its structure should be as Fig. 3.
-![](./img/dataset_struct.png)
+![](./img/dataset_struct.png "dataset structure")
+
 Figure 3. Structure of the dataset.
 
 ### Training Tacotron2
@@ -70,7 +71,7 @@ train_tacotron2.py -o logs --init-lr 1e-3 --final-lr 1e-5 --epochs 300 -bs 32 --
 gta.py --checkpoint logs/checkpoint_0200.pt
 ```
 
-(2) And put the gta output to the below gta folder, and put the files in previously mentioned audio directory to below quant folder.
+(2) Put the gta output to the below gta folder, and put the files in previously mentioned audio directory to below quant folder.
 ```bash
 ./data
   --voc_mol
@@ -91,7 +92,11 @@ and `--WaveRnn` arguments.
    ```bash
    python inference.py --tacotron2 <Tacotron2_checkpoint> --WaveRnn <WaveRnn_checkpoint> -o output/ -i phrases/phrase.txt
    ```
-
+   You can also use default param and run as server, and input text base on GUI:
+   ```bash
+   python manage.py
+   python start_gui.py
+   ```
    The speech is generated from lines of text in the file that is passed with
    `-i` argument. The number of lines determines inference batch size. The output 
    audio will be stored in the path specified by the `-o` argument.

@@ -4,7 +4,7 @@ import json
 import pickle
 # Create your views here.
 from django.http import HttpResponse
-from .models import synthetic_audio
+from .services import synthetic_audio
 
 
 def synthetic(request):
