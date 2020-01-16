@@ -168,10 +168,10 @@ class WaveRNN(nn.Module):
                 aux = self.fold_with_overlap(aux, target, overlap, self.pad_val)
 
             b_size, seq_len, _ = mels.size()
-            # n = 2227
-            # num = 1
-            # torch.save(mels, f"outputs/batched_mels{num}.pt")
-            # torch.save(mels, f"outputs/batched_aux{num}.pt")
+            n = 2227
+            num = 1
+            torch.save(mels, f"outputs/batched_mels{num}.pt")
+            torch.save(mels, f"outputs/batched_aux{num}.pt")
             h1 = torch.zeros(1).cuda().repeat(b_size, self.rnn_dims)
             h2 = torch.zeros(1).cuda().repeat(b_size, self.rnn_dims)
             x = torch.zeros(1).cuda().repeat(b_size, 1)
@@ -231,7 +231,7 @@ class WaveRNN(nn.Module):
 
         output = torch.stack(output).transpose(0, 1)
         output = output.cpu().numpy()
-        # torch.save(output, f"outputs/output_before_mulaw{num}.pt")
+        torch.save(output, f"outputs/output_before_mulaw{num}.pt")
         output = output.astype(np.float64)
 
         if mu_law :

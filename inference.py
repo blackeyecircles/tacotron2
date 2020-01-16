@@ -44,15 +44,6 @@ from wavernn.utils.dsp import *
 from wavernn.fatchord_version import WaveRNN
 # from utils.paths import Paths
 
-seed = 1234
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-random.seed(seed)
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
-
 
 def parse_args(parser):
     """
@@ -174,6 +165,7 @@ def setup_seed(seed):
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
@@ -184,7 +176,7 @@ def main():
     Inference is executed on a single GPU.
     """
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    setup_seed(1234)
+    # setup_seed(1234)
 
     parser = argparse.ArgumentParser(description='PyTorch Tacotron 2 Inference')
     parser = parse_args(parser)

@@ -121,7 +121,7 @@ def setup_seed(seed):
     torch.backends.cudnn.deterministic = True
 
 
-setup_seed(1234)
+# setup_seed(1234)
 
 parser = argparse.ArgumentParser(description='PyTorch Tacotron 2 Inference')
 parser = parse_args(parser)

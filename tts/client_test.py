@@ -14,7 +14,7 @@ def run(i, text, callback=None):
     print(textmod)
     #输出内容:user=admin&password=admin
     header_dict = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko'}
-    url='http://127.0.0.1:8000/tts/'
+    url='http://192.168.2.191:6666/tts/'
     req = request.Request(url='%s%s%s' % (url, '?', textmod), headers=header_dict)
     res = request.urlopen(req)
     res = res.read().decode(encoding='utf-8')
@@ -23,7 +23,7 @@ def run(i, text, callback=None):
     tmp = json.loads(res)
     output = base64.b64decode(tmp['data'])
     p = pyaudio.PyAudio()
-    stream=p.open(format=p.get_format_from_width(2), channels=1, rate=22050, output=True)
+    stream=p.open(format=p.get_format_from_width(tmp['width']), channels=tmp['channel'], rate=tmp['sr'], output=True)
     stream.write(output)
     stream.stop_stream()
     stream.close()

@@ -23,7 +23,7 @@ label.pack()
 
 name_input = tk.Text(window, width=90, height=5, font=ft)		# width宽 height高
 name_input.pack()
-name_input.insert(tk.INSERT, "我的工作，我的生活，我的人生，尽在于此。")
+name_input.insert(tk.INSERT, "中瑞福宁的人工智能系统。")
 
 
 def synthetic():
@@ -48,19 +48,3 @@ tk.Button(window, text='合成语音', command=synthetic, font=ft, width=8, heig
 
 
 window.mainloop()
-
-
-# import tkinter as tk
-# import tkinter.font as tf
-#
-# enter_w = tk.Tk()
-# enter_w.title('Test') #设置标题
-# enter_w.geometry('750x500')#设置窗体大小
-#
-# ft = tf.Font(family='华文隶书', size=10,weight=tf.BOLD,slant=tf.ITALIC, \
-#              underline=1,overstrike=1)  #设置字体
-# Lab = tk.Label(enter_w ,text='测试字体文字',fg ="white",bg = '#0000cd', \
-#                font = ft,compound='center')
-# Lab.pack()  #设置label显示
-#
-# enter_w.mainloop()
