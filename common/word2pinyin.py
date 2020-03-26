@@ -11,7 +11,8 @@ import numpy as np
 
 split_pat = re.compile(r'[：；、，。？！\s,]\s*')
 num_pat = re.compile(r"\d+\.?\d*")
-
+connect_pat = re.compile(r"\d+\.?\d*([-|~|～])\d+\.?\d*")
+percent_pat = re.compile(r"\d+\.?\d*([%|‰])?([-|~|～])?\d*\.?\d*[%|‰]")
 # 将单位符号转为汉字, 需要不断扩充维护
 unit_dict = {'km': '千米',
              'cm': '厘米',
@@ -36,12 +37,13 @@ units = r'\d{1}' + r'|\d{1}'.join(unit_dict.keys())
 unit_pat = re.compile(fr'{units}')
 
 # 纠正一些错误读音，包括多音字。需不断扩充维护
-load_phrases_dict({'百日咳': [['bai3'], ['ri4'], ['ke2']],
+load_phrases_dict({'咳': [['ke2']],
                    '一骑绝尘': [['yi1'], ['ji4'], ['jue2'], ['chen2']],
                    '我们': [['wo3'], ['men5']],
                    '你们': [['ni3'], ['men5']],
                    '他们': [['ta1'], ['men5']],
                    '尽': [['jin4']],
+                   '较长': [['jiao4'], ['chang2']],
                    })
 
 # 分词后，不希望被单独放在下一句句首的字
@@ -81,6 +83,36 @@ def unit2word(result):
     # 获取匹配到的索引
     index = result.regs[0]
     return result.string[index[0]] + unit_dict[result.string[index[0] + 1: index[1]]]
+
+
+def connect2word(result):
+    # 获取匹配到的索引
+    index = result.regs[0]
+    # 获取连接符-或~的索引
+    index_zhi = result.regs[1][0]
+    return result.string[index[0]: index_zhi] + '至' + result.string[index_zhi + 1: index[1]]
+
+
+def percent2word(result):
+    zhi = "至"
+    string = result.string
+    # 获取匹配到的索引
+    index = result.regs[0]
+    index_first_percent = result.regs[1][0]
+    # 获取连接符-或~的索引
+    index_zhi = result.regs[2][0]
+    percent_symbol = string[index[1]]
+    if percent_symbol == '‰':
+        percent = '千分之'
+    else:
+        percent = '百分之'
+    if index_zhi == -1:
+        return percent + string[index[0]: index[1] - 1]
+    else:
+        if index_first_percent == -1:
+            return percent + string[index[0]: index_zhi] + zhi + string[index_zhi + 1: index[1] - 1]
+        else:
+            return percent + string[index[0]: index_first_percent] + zhi + string[index_zhi + 1: index[1] - 1]
 
 
 def word_segment(texts):
@@ -124,6 +156,8 @@ def word_segment(texts):
 
 def word2pinyin(text):
     text = re.sub(unit_pat, unit2word, text)
+    text = re.sub(percent_pat, percent2word, text)
+    text = re.sub(connect_pat, connect2word, text)
     text = num2word(text)
     # print(text)
     # 在‘的’后面断句，缩短单个句子
@@ -137,10 +171,10 @@ def word2pinyin(text):
 
 
 if __name__ == '__main__':
-    text = "中瑞福宁人工智能1mm系统。0.55kg百日咳2tkm(pertussiswhoopingcough)是由百日咳杆菌所致的急性呼吸道传染病。其特征为阵发性痉挛性咳嗽，咳嗽末伴有特殊的鸡鸣样吸气吼声。病程较长，可达数周甚至3个月左右，故有百日咳之称。"
+    text = "中瑞福宁2.2-3.3人工3.3%-2.2%智4.3-2.2%能1mm系统6%。0.55kg百日咳2tkm(pertussiswhoopingcough)是由百日咳杆菌所致的急性呼吸道传染病。其特征为阵发性痉挛性咳嗽，咳嗽末伴有特殊的鸡鸣样吸气吼声。病程较长，可达数周甚至3个月左右，故有百日咳之称。"
     # text = '中瑞福宁人工智能系统。'
     print('\n'.join(word2pinyin(text)))
-    # print(re.sub(unit_pat, unit2word, text))
+    # print(re.sub(percent_pat, percent2word, text))
     # num = 0
     # c = num2cn(num, numbering_type='high', alt_two=False, big=False, traditional=False)
     # print(c)

@@ -1,6 +1,7 @@
 
 import argparse
 import os
+from queue import Queue
 import random
 import time
 import torch
@@ -149,7 +150,7 @@ log_hardware()
 os.makedirs(args.output, exist_ok=True)
 
 
-def synthetic_audio(text):
+def synthetic_audio(text, result_queue=None, sentinel=None):
     sentences = word2pinyin(text)
     LOGGER.iteration_start()
 
@@ -159,7 +160,6 @@ def synthetic_audio(text):
 
     with torch.no_grad(), MeasureTime(measurements, "tacotron2_time"):
         _, mels, _, _, mel_lengths = tacotron_model.infer(sequences, text_lengths)
-
 
     tacotron2_infer_perf = mels.size(0)*mels.size(2)/measurements['tacotron2_time']
 
@@ -171,9 +171,43 @@ def synthetic_audio(text):
     mels = [mel[:, :length] for mel, length in zip(mels, mel_lengths)]
     mels = [mels[ids_sorted_decreasing.index(i)] for i in range(len(ids_sorted_decreasing))]
 
-    with torch.no_grad(), MeasureTime(measurements, "wavernn_time"):
-        pcm = wavernn_model.generate(torch.tensor(np.concatenate(mels, axis=-1)).unsqueeze(0) + hp.mel_bias, 'outputs/eval_wave_long.wav', batched, target, overlap, hp.mu_law)
+    mels_lengths_ordered = [mel_lengths.numpy().tolist()[ids_sorted_decreasing.index(i)] for i in range(len(ids_sorted_decreasing))]
+    mels_length = len(mels_lengths_ordered)
 
+    # 以length_threshold为临界句长拼接句子
+    length_threshold = 250
+    i = 0
+    length_sum = 0
+    split_group = []
+    # 最多分为group_num_threshold + 1 个句组
+    group_num_threshold = 4
+    for j, length in enumerate(mels_lengths_ordered):
+        length_sum += length
+        if len(split_group) >= group_num_threshold:
+            split_group.append((i, mels_length))
+            break
+        if length_sum > length_threshold:
+            split_group.append((i, j + 1))
+            i = j + 1
+            length_sum = 0
+
+    group_length = len(split_group)
+    with torch.no_grad(), MeasureTime(measurements, "wavernn_time"):
+        for i, group in enumerate(split_group):
+            if group_length == 1:
+                status = 2
+            elif i == 0:
+                status = 0
+            elif i == group_length - 1:
+                status = 2
+            else:
+                status = 1
+            # output = 'outputs/' + time.strftime('%Y%m%d_%H%M%S', time.localtime(time.time())) + '.wav'
+            output = 'outputs/' + 'sample.wav'
+            pcm = wavernn_model.generate(torch.tensor(np.concatenate(mels[group[0]: group[1]], axis=-1)).unsqueeze(0) + hp.mel_bias
+                                         , output, batched, target, overlap, hp.mu_law)
+            result_queue.put((status, pcm))
+    result_queue.put(sentinel)
     LOGGER.log(key="wavernn_latency", value=measurements['wavernn_time'])
     LOGGER.log(key="latency", value=(measurements['tacotron2_time'] + measurements['wavernn_time']))
     LOGGER.iteration_stop()
