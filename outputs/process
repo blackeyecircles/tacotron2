@@ -1,0 +1,57 @@
+
+python train.py -m Tacotron2 -d /home/shenxz/dataset -o ./output/ -lr 1e-3 --epochs 1501 -bs 32 --weight-decay 1e-6 --grad-clip-thresh 1.0 --cudnn-enabled --log-file ./output/nvlog.json --anneal-steps 500 1000 1500 --anneal-factor 0.1 --amp-run --text-cleaners transliteration_cleaners --checkpoint-path ./output/checkpoint_Tacotron2_100 --epochs-per-checkpoint 10
+
+python train.py -m WaveGlow -d /home/shenxz/dataset -o ./output/ -lr 1e-4 --epochs 1001 -bs 1 --segment-length  8000 --weight-decay 0 --grad-clip-thresh 65504.0 --cudnn-enabled --cudnn-benchmark --log-file ./output/nvlog.json --amp-run --text-cleaners transliteration_cleaners 
+
+
+preprocess_audio2mel -d /home/shenxz/dataset --wav-files filelists/bznsyp_audio_text_test_filelist.txt --mel-files filelists/bznsyp_mel_text_test_filelist.txt
+
+preprocess_audio2mel -d /home/shenxz/dataset --wav-files /home/shenxz/dataset/BZNSYP/partfilelist/wav_test_stft.txt --mel-files /home/shenxz/dataset/BZNSYP/partfilelist/mel_test_stft.txt --filter-length 2048 --hop-length 275 --win-length 1100 --mel-fmin 125.0 --mel-fmax 7600.0
+
+synthesize.py --checkpoint pretrained/
+
+
+
+python test_infer.py --tacotron2 /home/shenxz/code/DeepLearningExamples/PyTorch/SpeechSynthesis/Tacotron2/output/checkpoint_Tacotron2_1500 --waveglow /home/shenxz/.cache/torch/checkpoints/joc-waveglow-fp32-pyt-20190306 -o output/ --include-warmup -i phrases/phrase.txt --amp-run 
+
+
+python inference.py --tacotron2 /home/shenxz/code/DeepLearningExamples/PyTorch/SpeechSynthesis/Tacotron2/output/checkpoint_Tacotron2_1500 --waveglow /home/shenxz/.cache/torch/checkpoints/joc-waveglow-fp32-pyt-20190306 -o output/ --include-warmup -i phrases/phrase.txt --amp-run
+
+/home/shenxz/.cache/torch/checkpoints/joc-tacotron2-fp32-pyt-20190306
+
+
+
+geek:
+python inference.py --checkpoint /home/shenxz/code/DeepLearningExamples/PyTorch/SpeechSynthesis/Tacotron2/output/checkpoint_Tacotron2_1500 -i phrase.txt --stft-hop-length 256
+
+
+tacotron2 params:
+mask-padding:
+max-decoder-steps
+gate-threshold
+p-attention-dropout
+p-decoder-dropout
+decoder-no-early-stopping
+
+
+for tiny infer:
+--num_samples=10 --beam_size=500 --num_proc_bsearch=8 --num_conv_layers=2 --num_rnn_layers=3 --rnn_layer_size=2048 --alpha=2.5 --beta=0.3 --cutoff_prob=1.0 --cutoff_top_n=40 --use_gru=False --use_gpu=True --share_rnn_weights=True --infer_manifest='data/tiny/manifest.test-clean' --mean_std_path=data/tiny/mean_std.npz --vocab_path=data/tiny/vocab.txt --model_path=./checkpoints/tiny/step_final --lang_model_path=models/lm/common_crawl_00.prune01111.trie.klm --decoding_method=ctc_beam_search --error_rate_type=wer --specgram_type=linear
+
+
+python deploy/demo_server.py --host_ip localhost --host_port 8086 --mean_std_path data/aishell/mean_std.npz --vocab_path models/aishell/vocab.txt --model_path models/aishell --lang_model_path models/lm/zh_giga.no_cna_cmn.prune01244.klm --warmup_manifest data/aishell/manifest.test
+
+
+example-app/
+  CMakeLists.txt
+  example-app.cpp
+
+mkdir build
+cd build
+cmake -DCMAKE_PREFIX_PATH=/home/shenxz/libtorch ..
+cmake --build . --config Release
+
+./example-app <path_to_model>/traced_resnet_model.pt
+
+长城是古代中国在不同时期为比预赛的有误不了清洗而修正的规模更大的支持工程
+
+
